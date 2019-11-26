@@ -1,0 +1,92 @@
+#!/bin/bash
+
+version="0.1.3b" # wird mit --version auf der console ausgegeben
+GUI=yad
+filter=0
+filters=(-Th -Tha -Thl -Ta -Tl -Ti)
+
+#Versionsinfo auf der Console ausgeben, dann beenden
+if [[ $1 = "--version" ]]; then
+    echo "$(basename $0) version $version"
+    echo "Copyright 2019 Michael John
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law."
+    exit
+fi
+
+#Überprüfen ob der User root ist
+if (( $EUID != 0 )); then
+    echo "Please run as root"
+    $($GUI --error --width=200 --title "LVHA - Fehler" --text "Please run as root" 2> >(grep -v 'GtkDialog' >&2))
+    exit
+fi
+
+#Überprüfen ob yad installiert ist
+#Später durch detect_gui() ersetzen
+if ! [ -x "$(command -v yad)" ]; then
+    echo 'Error: yad is not installed.' >&2
+    exit 1
+fi
+
+#while [ $? -ne 252 ] ; do
+#while [[ true ]]; do
+
+while true; do
+
+zen_dat_opts=( --width="800" --height="500"
+    --title="$(basename $0) - Eingehänge Dateisysteme - Filter auf ${filters[$filter]}"
+    --text="" --center 
+    --print-column="1" --separator=""
+    --list --column="Device" --column="Typ" --column="Size" --column="used" --column="free" --column="%" --column="Mount" 
+    --button=" Mount!add":1 --button=" Unmount!remove":2 --button=" Filter!gtk-preferences":4 --button=" Close!gtk-cancel":3 )
+
+#dat=$(df -Th |grep -e '^/dev/' )
+#dat=$(df -Th |grep -v 'auf' )
+dat=$(df ${filters[$filter]} |grep -v 'auf' | sort )
+#echo ${filters[$filter]}
+
+volume=$( $GUI "${zen_dat_opts[@]}" ${dat} 2> >(grep -v 'GtkDialog' >&2) )
+#echo "Volume: $volume, Returncode: $?"
+
+RESULT=$?
+#echo $RESULT
+
+case $RESULT in
+
+252) exit 0;;
+
+3) exit 0;;
+
+1)  mp=$( $GUI --form --width=650 --title="Mountpoint auswählen" --text="Wählen sie ein Volume und einen Mountpoint" --field="Volume" "$volume" --field="Mountpoint":DIR )
+    echo "Volume: ${mp:0:1}"
+    echo "Mountpoint: ${mp:1:2}"
+    x=$(echo $mp | awk -F '[|]' '{print $1}')
+    echo "vol $x"
+    eval $( mount $x );;
+
+2)  #mp=$( $GUI --form --width=650 --title="Mountpoint auswählen" --text="Wählen sie ein LVM-Volume und einen Mountpoint" --field="Volume" "$volume" --field="Mountpoint":DIR )
+    echo "Volume: ${mp:0:1}"
+    echo "Mountpoint: ${mp:1:2}"
+    x=$(echo $volume | awk -F '[|]' '{print $1}')
+    #echo "vol $x" 2> /tmp/partshow
+    echo "" > /tmp/partshow 
+    ans=$( umount $x 2> /tmp/partshow )
+    #echo $ans
+    if [[ $? -ne 0 ]]; then
+		#echo $ans;
+		$( $GUI --title "$(basename $0)" --image=error --text="$(cat /tmp/partshow)" --button=gtk-ok:1 ) 
+	fi;;
+
+4)  if [[ $filter+1 -lt ${#filters[@]} ]]; then
+		let filter++;
+	else
+		let filter=1;
+	fi
+    echo "Filter auf ${filters[$filter]} gesetzt";
+
+esac
+
+done
+
+#done
