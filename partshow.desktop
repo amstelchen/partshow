@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=partshow
+Comment=Grafische Oberfläche zur Verwaltung von Mountpoints
+Exec=pkexec /home/mic/partshow
+Icon=/home/mic/Dokumente/partition-icon-28.jpg.png
+Path=
+Terminal=false
+StartupNotify=false
